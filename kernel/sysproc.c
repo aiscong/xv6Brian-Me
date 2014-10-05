@@ -7,7 +7,9 @@
 #include "sysfunc.h"
 #include "pstat.h"
 //#include <limits.h>
-#define LONG_MAX 100000000
+#define MAX_BID 2147483647
+
+int total_percent = 0;
 int sys_reserve(void){
   int percent = -1;
   if(argint(0, &percent) < 0){
@@ -16,8 +18,12 @@ int sys_reserve(void){
   if(percent < 0 || percent > 100){
     return -1;
   }
+  if((total_percent + percent) > 200){
+    return -1;
+  }
   proc->bid = 0;
   proc->percent = percent;
+  total_percent += percent;
   proc->type = 1; //indicate its a reserved type
   return 0;
 }
@@ -28,7 +34,7 @@ int sys_spot(void){
     return -1;
   }
 
-  if( bid < 0 || bid > LONG_MAX){
+  if( bid < 0 || bid > MAX_BID){
     return -1;
   }
   proc->percent = 0;

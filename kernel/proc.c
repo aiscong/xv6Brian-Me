@@ -5,7 +5,6 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -18,6 +17,12 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+//rand generator
+static unsigned long int next = 1;
+int rand(void){
+  next = next*1103515245 + 12345;
+  return (unsigned int)(next/65536)%32768;
+}
 
 void
 pinit(void)
@@ -93,7 +98,11 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-
+  //set the process as default spot with bid 0
+  p->bid = 0;
+  p->type = 0;
+  p->percent = 0;
+  
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -144,6 +153,11 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
+  
+  //for every new process. spot with bid 0
+  np->type = 0;
+  np->bid = 0;
+  np->percent = 0;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -256,32 +270,43 @@ void
 scheduler(void)
 {
   struct proc *p;
-
+  int rnum = -1;
+  int ttl = 0;
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    //did not solve the problem that total is less than rnum
+    rnum = rand() % 200;
+    ttl = 0;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
-
+      if(p->type != 1){
+	continue;
+      }else{
+	ttl += p->percent;
+      }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+      if(ttl >= rnum){
       proc = p;
+      //get the right stack for this proc
       switchuvm(p);
       p->state = RUNNING;
+      //actually run it
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
-
+      
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
+      } 
+      //leaves the problem that ttl < rnum for all process 
     }
     release(&ptable.lock);
-
   }
 }
 
