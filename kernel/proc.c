@@ -5,10 +5,11 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
+#include "ptable.h"
+
+int total_percent = 0;
+
+struct ptable ptable;
 
 static struct proc *initproc;
 
@@ -103,6 +104,8 @@ userinit(void)
   p->type = 0;
   p->percent = 0;
   
+  p->chosen = 1;
+  
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -158,7 +161,10 @@ fork(void)
   np->type = 0;
   np->bid = 0;
   np->percent = 0;
-
+  np->time = 0;
+  np->nanocharge = 0;
+  np->dollcharge = 0;
+  np->chosen = 0;
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -298,6 +304,13 @@ scheduler(void)
       p->state = RUNNING;
       //actually run it
       swtch(&cpu->scheduler, proc->context);
+      (p->chosen)++;
+      (p->time) += 10;
+      (p->nanocharge)+=1000;
+      if(p->nanocharge > 1000000000){
+	p->nanocharge-= 1000000000;
+	p->dollcharge++;
+      }
       switchkvm();
       
       // Process is done running for now.

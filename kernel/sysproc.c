@@ -6,10 +6,9 @@
 #include "proc.h"
 #include "sysfunc.h"
 #include "pstat.h"
-//#include <limits.h>
+#include "ptable.h"
 #define MAX_BID 2147483647
 
-int total_percent = 0;
 int sys_reserve(void){
   int percent = -1;
   if(argint(0, &percent) < 0){
@@ -45,10 +44,25 @@ int sys_spot(void){
 
 int sys_getpinfo(void){
   struct pstat *p;
+  int i;
   if(argptr(0, (void*)&p, sizeof(*p)) < 0){
     return -1;
   }
-  
+  struct proc *proc;
+  i = 0;
+  for (proc = ptable.proc; proc < &ptable.proc[NPROC]; proc++) {
+    //inuse populate
+    if(proc->state == UNUSED){
+      p->inuse[i] = 0;
+    }else{
+      p->inuse[i] = 1;
+      p->pid[i] = proc->pid;
+      p->chosen[i] = proc->chosen;
+      p->time[i] = proc->time;
+      p->charge[i] = proc->dollcharge + proc->nanocharge*1.0/1000000000;
+    }
+    i++;
+  }
   return 0;
 }
 

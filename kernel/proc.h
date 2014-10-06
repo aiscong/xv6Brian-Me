@@ -67,6 +67,7 @@ struct proc {
   int time;
   int dollcharge;
   long nanocharge;
+  int chosen;
 
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
