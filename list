@@ -1,0 +1,20 @@
+1.spot work in scheduler
+
+2.corner cases
+	 1) if only reserved procs, and the total is less than 200. What policy
+	 do we use?
+	 ROUND ROBIN!
+
+	 2) only spot and they have the same bid. What policy?
+
+	 ROUND ROBIN!
+
+
+3.check code for reserve -- finish!
+4.check code for pstat -- finish!
+5.microdollar change -- finish!
+
+
+when do we start to run spot procs?
+1. its no runnable reserves 
+2. total tickets is less than 200 of reserved

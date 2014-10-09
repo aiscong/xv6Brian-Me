@@ -9,7 +9,7 @@ struct pipe;
 struct proc;
 struct spinlock;
 struct stat;
-extern int total_percent;
+//extern int total_percent;
 
 // bio.c
 void            binit(void);

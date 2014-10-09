@@ -7,7 +7,7 @@
 #include "spinlock.h"
 #include "ptable.h"
 
-int total_percent = 0;
+//int total_percent = 0;
 
 struct ptable ptable;
 
@@ -18,6 +18,7 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
 //rand generator
 static unsigned long int next = 1;
 int rand(void){
@@ -48,7 +49,7 @@ allocproc(void)
   release(&ptable.lock);
   return 0;
 
-found:
+ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   release(&ptable.lock);
@@ -103,7 +104,6 @@ userinit(void)
   p->bid = 0;
   p->type = 0;
   p->percent = 0;
-  
   p->chosen = 1;
   
   safestrcpy(p->name, "initcode", sizeof(p->name));
@@ -163,7 +163,7 @@ fork(void)
   np->percent = 0;
   np->time = 0;
   np->nanocharge = 0;
-  np->dollcharge = 0;
+  np->microcharge = 0;
   np->chosen = 0;
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -277,50 +277,239 @@ scheduler(void)
 {
   struct proc *p;
   int rnum = -1;
+  //the total lottery what the ticket is on now
   int ttl = 0;
+  int havereserved = 0;
+  int havespot = 0; // 0-> no spot procs in ptable
+  int samebid = 1; // 0-> not same bid 1->same bid
+  // int total_percent = 0;
   for(;;){
     // Enable interrupts on this processor.
     sti();
+    //we check if the ptable has only reserved or only spot
+    havereserved = 0;
+    havespot = 0;
+       
+    //get there is any reserved or spot proc in the ptable
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      //there is a spot
+      if(p->state == RUNNABLE){
+	if(p->type == 0){
+	  havespot = 1;
+	}
+	if(p->type == 1){
+	  havereserved = 1;
+	}
+      }
+    }
+    release(&ptable.lock);
+    //end of total percent accumulation
+
+    //assuming only spot procs and they have the same bid
+    samebid = 1;
+    int tempbid = -1;
+    int index = 0;
+      
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE && p->type == 0){
+	//assign the first bid for comparison
+	if(index == 0){
+	  tempbid = p->bid;
+	  index = 1;
+	}
+	//we find a different bid
+	if(p->bid != tempbid){
+	  samebid = 0;
+	  break;
+	}
+      }
+    }
+    release(&ptable.lock);
+   
+
+    /*
+    //only spot and with different bids 
+    if(havespot == 1 && havereserved == 0 && samebid == 0) {
+    acquire(&ptable.lock);
+    int maxbid = -1;
+    struct proc *pp;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->state != UNUSED){
+    if (p->bid > maxbid) {
+    maxbid = p->bid;
+    proc = p;
+    pp = p;
+    }
+    }
+    }
+    switchuvm(pp);
+    pp->state = RUNNING;
+    swtch(&cpu->scheduler,proc->context);
+    switchkvm();
+    proc = 0;
+    release(&ptable.lock);
+    }//end of only spot with different bids  
+    
+    //either if only spots with the same bid
+    //or if only reserved and total percent is < 200
+    else if((havespot == 1 && havereserved == 0 && samebid == 1) || 
+    (havespot == 0 && havereserved == 1 && total_percent < 200)){
+    //round robin
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != RUNNABLE){
+    continue;
+    }
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    swtch(&cpu->scheduler, proc->context);
+    switchkvm();
+	  
+    proc = 0;
+    }      
+    release(&ptable.lock);
+     
+    //either total percent == 200 or both reserved and spot procs are present
+    }*/
+    // else{
+     
     //did not solve the problem that total is less than rnum
-    rnum = rand() % 200;
+    rnum = rand() % 100;
     ttl = 0;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
-        continue;
+	continue;
+      //now on, all the process are runnable
       if(p->type != 1){
 	continue;
+	//now on, all procs are reserved and runnable
       }else{
-	ttl += p->percent;
+	ttl += (p->percent)/2;
       }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       if(ttl >= rnum){
-      proc = p;
-      //get the right stack for this proc
-      switchuvm(p);
-      p->state = RUNNING;
-      //actually run it
-      swtch(&cpu->scheduler, proc->context);
-      (p->chosen)++;
-      (p->time) += 10;
-      (p->nanocharge)+=1000;
-      if(p->nanocharge > 1000000000){
-	p->nanocharge-= 1000000000;
-	p->dollcharge++;
-      }
-      switchkvm();
+	proc = p;
+	//get the right stack for this proc
+	switchuvm(p);
+	p->state = RUNNING;
+	//actually run it
+	swtch(&cpu->scheduler, proc->context);
+	(p->chosen)++;
+	(p->time) += 10; //in millisecond
+	p->microcharge++;
+	switchkvm();
       
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      proc = 0;
-      } 
+	// Process is done running for now.
+	// It should have changed its p->state before coming back.
+	proc = 0;
+      }
       //leaves the problem that ttl < rnum for all process 
     }
     release(&ptable.lock);
-  }
+
+    //if no reserves wins the lottery; CPU is all for spot
+    if (ttl < rnum){
+      //if there is no spot, round robin for reserved
+      if(havespot == 0){
+	//do round robin for reserved
+	acquire(&ptable.lock);
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	  if(p->state != RUNNABLE){
+	    continue;
+	  }
+	  proc = p;
+	  switchuvm(p);
+	  p->state = RUNNING;
+	  swtch(&cpu->scheduler, proc->context);
+	
+	  //change the pstat
+	  (p->chosen)++;
+	  (p->time) += 10; //in millisecond
+	  p->microcharge++;					
+
+	  switchkvm();
+	  
+	  proc = 0;
+	}      
+	release(&ptable.lock);
+      }
+      //else means there are spot and reserved
+      else{
+	//different bid 
+	if(samebid == 0) {
+	  acquire(&ptable.lock);
+	  int maxbid = -1;
+	  struct proc *pp;
+	  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+	    if(p->state == RUNNABLE && p->type == 0){
+	      if (p->bid > maxbid) {
+		maxbid = p->bid;
+		proc = p;
+		pp = p;
+	      }
+	    }
+	  } // end of for loop for getting the maximum bid
+	  switchuvm(pp);
+	  pp->state = RUNNING;
+	  swtch(&cpu->scheduler,proc->context);
+	
+	  //change the pstat
+	  (pp->chosen)++;
+	  (pp->time) += 10; //in millisecond
+	  pp->nanocharge += 10*(pp->bid);
+	
+	  //convert nanocharge to microcharge
+	  while(pp->nanocharge > 1000){
+	    pp->microcharge++;
+	    pp->nanocharge -= 1000;
+	  }
+
+	  switchkvm();
+	  proc = 0;
+	  release(&ptable.lock);
+	}//end of different bids left over for spot from reserved
+	
+	//same bid right
+	else{
+	  //round robin
+	  acquire(&ptable.lock);
+	  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	    if(p->state != RUNNABLE){
+	      continue;
+	    }
+	    if(p->type == 0){
+	      proc = p;
+	      switchuvm(p);
+	      p->state = RUNNING;
+	      swtch(&cpu->scheduler, proc->context);
+	  	
+	      //change the pstat
+	      (p->chosen)++;
+	      (p->time) += 10; //in millisecond
+	      p->nanocharge += 10*(p->bid);
+	
+	      //convert nanocharge to microcharge
+	      while(p->nanocharge > 1000){
+		p->microcharge++;
+		p->nanocharge -= 1000;
+	      }
+
+	      switchkvm();
+	      proc = 0;
+	    } // end spot procs 
+	  } // go through p table and find a spot to run    
+	  release(&ptable.lock);
+	} // end of same bids left over for spot from reserved
+       } // end of there are reserved and spot
+     } //this is fall off the lottery
+  }//endless loop
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -452,12 +641,12 @@ void
 procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+    [UNUSED]    "unused",
+    [EMBRYO]    "embryo",
+    [SLEEPING]  "sleep ",
+    [RUNNABLE]  "runble",
+    [RUNNING]   "run   ",
+    [ZOMBIE]    "zombie"
   };
   int i;
   struct proc *p;

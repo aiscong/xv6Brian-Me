@@ -65,8 +65,8 @@ struct proc {
   int percent;
   int bid;
   int time;
-  int dollcharge;
-  long nanocharge;
+  int microcharge;
+  int nanocharge;
   int chosen;
 
   uint sz;                     // Size of process memory (bytes)

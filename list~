@@ -1,0 +1,8 @@
+1.spot
+2.corner cases
+	 1) if only reserved procs, and the total is less than 200. What policy
+	 do we use?
+	 2) only spot and they have the same bid. What policy?
+3.check code for reserve
+4.check code for pstat
+5.microdollar change

@@ -16,13 +16,22 @@ int sys_reserve(void){
   }
   if(percent < 0 || percent > 100){
     return -1;
+  }  
+  struct proc *proc;
+  //check total percent of cpu reserve
+  int total_percent = 0;
+  for (proc = ptable.proc; proc < &ptable.proc[NPROC]; proc++) {
+    //inuse populate
+    if(proc->state != UNUSED && proc->type == 1){
+      total_percent += proc->percent;
+    }
   }
   if((total_percent + percent) > 200){
     return -1;
   }
+  //turning it into reserved process
   proc->bid = 0;
   proc->percent = percent;
-  total_percent += percent;
   proc->type = 1; //indicate its a reserved type
   return 0;
 }
@@ -44,10 +53,13 @@ int sys_spot(void){
 
 int sys_getpinfo(void){
   struct pstat *p;
-  int i;
+  int i; //process index
+
+  //grab it off the user stack
   if(argptr(0, (void*)&p, sizeof(*p)) < 0){
     return -1;
   }
+
   struct proc *proc;
   i = 0;
   for (proc = ptable.proc; proc < &ptable.proc[NPROC]; proc++) {
@@ -57,11 +69,11 @@ int sys_getpinfo(void){
     }else{
       p->inuse[i] = 1;
       p->pid[i] = proc->pid;
-      p->chosen[i] = proc->chosen;
-      p->time[i] = proc->time;
-      p->charge[i] = proc->dollcharge + proc->nanocharge*1.0/1000000000;
+      p->chosen[i] = proc->chosen; //how many times it has been chosen to run
+      p->time[i] = proc->time; //total run time -- in millisecond
+      p->charge[i] = proc->microcharge + proc->nanocharge*1.0/1000; //total cost in microdollar
     }
-    i++;
+    i++; //advance process in the pstat array of procs
   }
   return 0;
 }
